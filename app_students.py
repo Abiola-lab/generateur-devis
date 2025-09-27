@@ -7,8 +7,7 @@ import os
 from functools import wraps
 from models import Devis, DevisItem, Facture
 from pdf_generator_students import generate_student_style_devis, generate_pdf_facture
-from docx_generator import generate_docx_devis, generate_docx_facture
-
+from pdf_generator_students import generate_student_style_devis, generate_pdf_facture, generate_pdf_devis
 # Créer l'application Flask
 app = Flask(__name__)
 CORS(app)  # Permet les requêtes depuis d'autres domaines
