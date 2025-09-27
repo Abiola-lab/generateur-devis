@@ -7,6 +7,7 @@ import os
 from functools import wraps
 from models import Devis, DevisItem, Facture
 from pdf_generator_students import generate_student_style_devis, generate_pdf_facture
+from docx_generator import generate_docx_devis, generate_docx_facture
 
 # Créer l'application Flask
 app = Flask(__name__)
@@ -86,6 +87,7 @@ curl -X POST http://localhost:5000/api/devis \\
     "client_adresse": "123 Rue Example, Paris",
     "fournisseur_nom": "Ma Société",
     "theme": "bleu",
+    "format": "pdf",
     "items": [
       {
         "description": "Formation web",
@@ -108,6 +110,7 @@ fetch('/api/devis', {
   body: JSON.stringify({
     client_nom: 'Mon Client',
     theme: 'vert',
+    format: 'docx',
     items: [{
       description: 'Ma prestation',
       prix_unitaire: 500.0,
@@ -120,13 +123,15 @@ fetch('/api/devis', {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'devis.pdf';
+  a.download = 'devis.docx';
   a.click();
 });
             """
         },
         
         "champs_obligatoires": ["client_nom", "items"],
+        "formats_supportes": ["pdf", "docx"],
+        "themes_disponibles": THEMES_DISPONIBLES,
         "note": "📚 Parfait pour apprendre le développement d'API avec Flask !"
     }
     
@@ -178,6 +183,7 @@ def get_exemple():
         "client_email": "client@entreprise.com",
         "client_siret": "98765432109876",
         "client_telephone": "+33 4 56 78 90 12",
+        "client_tva": "FR12345678901",
         
         # Informations bancaires
         "banque_nom": "Banque Populaire",
@@ -187,6 +193,7 @@ def get_exemple():
         # Logo et thème
         "logo_url": "https://example.com/logo.png",
         "theme": "bleu",
+        "format": "pdf",
         
         # Textes personnalisés
         "texte_intro": "Suite à notre entretien, nous avons le plaisir de vous proposer nos services.",
@@ -199,7 +206,13 @@ def get_exemple():
                 "prix_unitaire": 800.0,
                 "quantite": 5,
                 "tva_taux": 20,
-                "remise": 0
+                "remise": 0,
+                "details": [
+                    "HTML5 / CSS3 avancé",
+                    "JavaScript ES6+",
+                    "Framework React",
+                    "API REST"
+                ]
             },
             {
                 "description": "Support technique post-formation",
@@ -221,12 +234,13 @@ def get_exemple():
     return jsonify({
         "message": "📝 Exemple de données pour créer un devis",
         "exemple_donnees": exemple,
-        "total_exemple": sum(item['prix_unitaire'] * item['quantite'] for item in exemple['items']),
+        "total_exemple": sum((item['prix_unitaire'] * item['quantite']) - item.get('remise', 0) for item in exemple['items']),
         "instructions": {
             "endpoint": "/api/devis",
             "methode": "POST",
             "content_type": "application/json",
             "champs_requis": ["client_nom", "items"],
+            "formats_disponibles": ["pdf", "docx"],
             "note": "💡 Les autres champs ont des valeurs par défaut si non spécifiés"
         }
     }), 200
@@ -236,21 +250,6 @@ def get_exemple():
 def create_devis():
     """
     Créer un devis personnalisé avec les données fournies
-    
-    Exemple de données JSON à envoyer :
-    {
-        "client_nom": "Mon Client",
-        "client_adresse": "123 Rue Example",
-        "fournisseur_nom": "Ma Société", 
-        "theme": "bleu",
-        "items": [
-            {
-                "description": "Ma prestation",
-                "prix_unitaire": 500.0,
-                "quantite": 1
-            }
-        ]
-    }
     """
     try:
         # Récupérer les données JSON
@@ -271,25 +270,6 @@ def create_devis():
         if not data.get('items') or len(data.get('items', [])) == 0:
             return jsonify({"error": "❌ Au moins un article est requis"}), 400
         
-        # Valider les articles
-        for i, item in enumerate(data.get('items', [])):
-            if not item.get('description'):
-                return jsonify({"error": f"❌ L'article {i+1} doit avoir une description"}), 400
-            
-            try:
-                prix = float(item.get('prix_unitaire', 0))
-                if prix <= 0:
-                    return jsonify({"error": f"❌ L'article {i+1} doit avoir un prix positif"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": f"❌ L'article {i+1} a un prix invalide"}), 400
-            
-            try:
-                qty = int(item.get('quantite', 1))
-                if qty <= 0:
-                    return jsonify({"error": f"❌ L'article {i+1} doit avoir une quantité positive"}), 400
-            except (ValueError, TypeError):
-                return jsonify({"error": f"❌ L'article {i+1} a une quantité invalide"}), 400
-        
         # Créer l'objet devis avec toutes les options modifiables
         devis = Devis(
             numero=data.get('numero', f"D-{datetime.now().year}-{str(uuid.uuid4())[:3]}"),
@@ -306,10 +286,10 @@ def create_devis():
             
             # Informations client
             client_nom=data.get('client_nom'),
-            client_adresse=data.get('client_adresse'),
-            client_ville=data.get('client_ville'),
-            client_siret=data.get('client_siret'),
-            client_tva=data.get('client_tva'),
+            client_adresse=data.get('client_adresse', ''),
+            client_ville=data.get('client_ville', ''),
+            client_siret=data.get('client_siret', ''),
+            client_tva=data.get('client_tva', ''),
             client_telephone=data.get('client_telephone', ''),
             client_email=data.get('client_email', ''),
             
@@ -355,8 +335,8 @@ def create_devis():
             filename = generate_pdf_devis(devis, theme=theme)
             mimetype = 'application/pdf'
         elif output_format == 'docx':
-            # Pour l'instant, on ne supporte pas encore DOCX
-            return jsonify({"error": "Format DOCX pas encore implémenté"}), 400
+            filename = generate_docx_devis(devis, theme=theme)
+            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         else:
             return jsonify({"error": "Format non supporté. Utilisez 'pdf' ou 'docx'"}), 400
         
@@ -449,8 +429,8 @@ def create_facture():
             filename = generate_pdf_facture(facture, theme=theme)
             mimetype = 'application/pdf'
         elif output_format == 'docx':
-            # Pour l'instant, on ne supporte pas encore DOCX
-            return jsonify({"error": "Format DOCX pas encore implémenté pour les factures"}), 400
+            filename = generate_docx_facture(facture, theme=theme)
+            mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         else:
             return jsonify({"error": "Format non supporté"}), 400
         
@@ -476,7 +456,6 @@ def test_devis():
             "numero": f"TEST-{datetime.now().strftime('%H%M%S')}",
             "date_emission": datetime.now().strftime('%d/%m/%Y'),
             "date_expiration": (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y'),
-            "date_debut": (datetime.now() + timedelta(days=7)).strftime('%d/%m/%Y'),
             
             "fournisseur_nom": "Formation Test Academy",
             "fournisseur_adresse": "123 Rue de Test",
@@ -484,7 +463,8 @@ def test_devis():
             "fournisseur_email": "test@formation.fr",
             
             "client_nom": "Client de Test",
-            "client_adresse": "456 Avenue du Test, 69000 Lyon",
+            "client_adresse": "456 Avenue du Test",
+            "client_ville": "69000 Lyon",
             "client_email": "client.test@exemple.com",
             
             "banque_nom": "Banque de Test",
@@ -495,12 +475,16 @@ def test_devis():
                 {
                     "description": "Formation développement web",
                     "prix_unitaire": 750.0,
-                    "quantite": 3
+                    "quantite": 3,
+                    "tva_taux": 20,
+                    "remise": 0
                 },
                 {
                     "description": "Support technique",
                     "prix_unitaire": 100.0,
-                    "quantite": 1
+                    "quantite": 1,
+                    "tva_taux": 20,
+                    "remise": 0
                 }
             ]
         }
@@ -519,9 +503,9 @@ def test_devis():
             
             client_nom=test_data['client_nom'],
             client_adresse=test_data['client_adresse'],
-            client_ville='',
-            client_siret='',
-            client_tva='',
+            client_ville=test_data['client_ville'],
+            client_siret='98765432109876',
+            client_tva='FR98765432109',
             
             banque_nom=test_data['banque_nom'],
             banque_iban=test_data['banque_iban'],
@@ -533,7 +517,9 @@ def test_devis():
             item = DevisItem(
                 description=item_data['description'],
                 prix_unitaire=item_data['prix_unitaire'],
-                quantite=item_data['quantite']
+                quantite=item_data['quantite'],
+                tva_taux=item_data.get('tva_taux', 20),
+                remise=item_data.get('remise', 0)
             )
             devis.items.append(item)
         
@@ -579,15 +565,7 @@ def internal_error(error):
         "message": "Une erreur interne s'est produite"
     }), 500
 
-# Point d'entrée de l'application
+# Configuration pour Railway
 if __name__ == '__main__':
-    # Configuration pour le développement local
     port = int(os.environ.get('PORT', 5000))
-    debug_mode = os.environ.get('FLASK_ENV') == 'development'
-    
-    print("🚀 Démarrage de l'API Générateur de Devis...")
-    print(f"📍 URL: http://localhost:{port}")
-    print(f"📚 Documentation: http://localhost:{port}/")
-    print(f"🧪 Test rapide: POST http://localhost:{port}/api/test")
-    
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    app.run(host='0.0.0.0', port=port)
