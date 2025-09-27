@@ -1,20 +1,20 @@
-# pdf_generator_students.py - Design épuré sans tableau (style Infinytia)
+# pdf_generator_students.py - Version finale corrigée
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm, mm
-from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.pdfgen import canvas
 import os
 import requests
 from io import BytesIO
 
-# Couleurs du design épuré
-COULEUR_GRIS_FONCE = colors.HexColor('#2c3e50')  # Gris foncé pour le texte
-COULEUR_GRIS_MOYEN = colors.HexColor('#7f8c8d')  # Gris moyen
-COULEUR_GRIS_CLAIR = colors.HexColor('#ecf0f1')  # Gris clair pour les fonds
-COULEUR_BORDURE = colors.HexColor('#bdc3c7')     # Bordures
+# Couleurs du design épuré Infinytia
+COULEUR_GRIS_FONCE = colors.HexColor('#2c3e50')
+COULEUR_GRIS_MOYEN = colors.HexColor('#7f8c8d')
+COULEUR_GRIS_CLAIR = colors.HexColor('#ecf0f1')
+COULEUR_BORDURE = colors.HexColor('#bdc3c7')
 
 def download_logo(logo_url):
     """Télécharger et traiter le logo depuis une URL"""
@@ -27,7 +27,7 @@ def download_logo(logo_url):
             img_data = BytesIO(response.content)
             logo = Image(img_data)
             
-            # Redimensionner le logo pour ce design
+            # Redimensionner le logo
             max_height = 2 * cm
             logo.drawHeight = max_height
             logo.drawWidth = max_height * logo.imageWidth / logo.imageHeight
@@ -54,7 +54,6 @@ class CleanCanvas(canvas.Canvas):
         self.doc_number = ""
     
     def showPage(self):
-        # Ajouter le footer avant de montrer la page
         self.draw_footer()
         canvas.Canvas.showPage(self)
     
@@ -64,22 +63,21 @@ class CleanCanvas(canvas.Canvas):
         self.setFont("Helvetica", 9)
         self.setFillColor(colors.grey)
         
-        # Footer à gauche : nom entreprise
+        # Footer gauche : nom entreprise
         self.drawString(2*cm, 1.5*cm, f"{self.company_name}, SAS")
         
-        # Footer à droite : numéro document et pagination
+        # Footer droite : numéro document
         self.drawRightString(A4[0] - 2*cm, 1.5*cm, f"{self.doc_number} · 1/2")
         
         self.restoreState()
 
 def generate_student_style_devis(devis_data):
-    """
-    Générer un devis PDF avec le design épuré d'Infinytia (sans tableau)
-    """
+    """Générer un devis PDF avec le design épuré d'Infinytia"""
+    
     os.makedirs('generated', exist_ok=True)
     filename = os.path.join('generated', f'devis_{devis_data["numero"]}.pdf')
     
-    # Canvas personnalisé pour le footer
+    # Canvas personnalisé
     def make_canvas(*args, **kwargs):
         canvas_obj = CleanCanvas(*args, **kwargs)
         canvas_obj.company_name = devis_data.get('fournisseur_nom', 'INFINYTIA')
@@ -100,14 +98,9 @@ def generate_student_style_devis(devis_data):
     elements = []
     styles = getSampleStyleSheet()
     
-    # ==========================================
     # 1. EN-TÊTE : "Devis" + Logo
-    # ==========================================
-    
-    # Télécharger le logo
     logo = download_logo(devis_data.get('logo_url', ''))
     
-    # Style pour "Devis"
     devis_title_style = ParagraphStyle(
         'DevisTitleStyle',
         fontSize=24,
@@ -117,10 +110,7 @@ def generate_student_style_devis(devis_data):
     )
     
     if logo:
-        # Avec logo : "Devis" à gauche, logo à droite
-        header_data = [
-            [Paragraph("Devis", devis_title_style), logo]
-        ]
+        header_data = [[Paragraph("Devis", devis_title_style), logo]]
         header_table = Table(header_data, colWidths=[14*cm, 4*cm])
         header_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -128,10 +118,7 @@ def generate_student_style_devis(devis_data):
             ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
         ]))
     else:
-        # Sans logo : "Devis" seul
-        header_data = [
-            [Paragraph("Devis", devis_title_style)]
-        ]
+        header_data = [[Paragraph("Devis", devis_title_style)]]
         header_table = Table(header_data, colWidths=[18*cm])
         header_table.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -141,14 +128,10 @@ def generate_student_style_devis(devis_data):
     elements.append(header_table)
     elements.append(Spacer(1, 8*mm))
     
-    # ==========================================
     # 2. INFORMATIONS DU DEVIS
-    # ==========================================
-    
     info_label_style = ParagraphStyle('InfoLabelStyle', fontSize=10, textColor=COULEUR_GRIS_FONCE, fontName='Helvetica-Bold')
     info_value_style = ParagraphStyle('InfoValueStyle', fontSize=10, textColor=COULEUR_GRIS_FONCE)
     
-    # Informations en tableau simple
     devis_info_data = [
         [Paragraph("Numéro de devis", info_label_style), Paragraph(devis_data.get('numero', ''), info_value_style)],
         [Paragraph("Date d'émission", info_label_style), Paragraph(devis_data.get('date_emission', ''), info_value_style)],
@@ -165,28 +148,21 @@ def generate_student_style_devis(devis_data):
     elements.append(devis_info_table)
     elements.append(Spacer(1, 8*mm))
     
-    # ==========================================
-    # 3. FOURNISSEUR ET CLIENT (côte à côte)
-    # ==========================================
-    
-    company_style = ParagraphStyle('CompanyStyle', fontSize=10, textColor=COULEUR_GRIS_FONCE, fontName='Helvetica-Bold')
+    # 3. FOURNISSEUR ET CLIENT
     address_style = ParagraphStyle('AddressStyle', fontSize=9, textColor=COULEUR_GRIS_FONCE)
     
-    # Contenu fournisseur
     fournisseur_content = f"""<b>{devis_data.get('fournisseur_nom', 'INFINYTIA')}</b><br/>
 {devis_data.get('fournisseur_adresse', '61 Rue De Lyon')}<br/>
 {devis_data.get('fournisseur_ville', '75012 Paris, FR')}<br/>
 {devis_data.get('fournisseur_email', 'contact@infinytia.com')}<br/>
 {devis_data.get('fournisseur_siret', '93968736400017')}"""
     
-    # Contenu client
     client_content = f"""<b>{devis_data.get('client_nom', '')}</b><br/>
 {devis_data.get('client_email', '')}<br/>"""
     
     if devis_data.get('client_tva'):
         client_content += f"Numéro de TVA: {devis_data.get('client_tva', '')}"
     
-    # Tableau côte à côte
     company_client_data = [
         [
             Paragraph(fournisseur_content, address_style),
@@ -202,22 +178,15 @@ def generate_student_style_devis(devis_data):
     elements.append(company_client_table)
     elements.append(Spacer(1, 10*mm))
     
-    # ==========================================
     # 4. TEXTE D'INTRODUCTION
-    # ==========================================
-    
     if devis_data.get('texte_intro'):
         intro_style = ParagraphStyle('IntroStyle', fontSize=10, textColor=COULEUR_GRIS_FONCE, alignment=TA_JUSTIFY)
         elements.append(Paragraph(devis_data.get('texte_intro'), intro_style))
         elements.append(Spacer(1, 8*mm))
     
-    # ==========================================
-    # 5. EN-TÊTE TABLEAU SIMPLE (sans tableau)
-    # ==========================================
-    
+    # 5. EN-TÊTE ARTICLES
     header_style = ParagraphStyle('HeaderStyle', fontSize=11, textColor=colors.white, fontName='Helvetica-Bold', alignment=TA_CENTER)
     
-    # En-tête avec fond gris foncé
     table_header_data = [
         [
             Paragraph("Description", header_style),
@@ -242,10 +211,7 @@ def generate_student_style_devis(devis_data):
     
     elements.append(table_header)
     
-    # ==========================================
-    # 6. ARTICLES SOUS FORME DE LIGNES (pas de tableau)
-    # ==========================================
-    
+    # 6. ARTICLES EN LIGNES
     article_style = ParagraphStyle('ArticleStyle', fontSize=10, textColor=COULEUR_GRIS_FONCE, fontName='Helvetica-Bold')
     detail_style = ParagraphStyle('DetailStyle', fontSize=9, textColor=COULEUR_GRIS_FONCE, leftIndent=0, alignment=TA_JUSTIFY)
     
@@ -255,7 +221,7 @@ def generate_student_style_devis(devis_data):
         tva_taux = item.get('tva_taux', 20)
         total_ht = prix_unitaire * quantite
         
-        # Ligne principale de l'article (comme dans le tableau mais sans bordures)
+        # Ligne principale article
         article_data = [
             [
                 Paragraph(item.get('description', ''), article_style),
@@ -280,7 +246,7 @@ def generate_student_style_devis(devis_data):
         
         elements.append(article_table)
         
-        # Détails de l'article (phases, livrables, etc.)
+        # Détails de l'article
         if item.get('details'):
             details_text = ""
             for detail in item.get('details', []):
@@ -292,11 +258,7 @@ def generate_student_style_devis(devis_data):
     
     elements.append(Spacer(1, 5*mm))
     
-    # ==========================================
     # 7. TOTAUX
-    # ==========================================
-    
-    # Calculer les totaux
     total_ht = sum(item.get('prix_unitaire', 0) * item.get('quantite', 1) for item in devis_data.get('items', []))
     total_tva = sum(
         (item.get('prix_unitaire', 0) * item.get('quantite', 1)) * (item.get('tva_taux', 20) / 100)
@@ -312,9 +274,6 @@ def generate_student_style_devis(devis_data):
     if 'total_ttc' in devis_data:
         total_ttc = devis_data['total_ttc']
     
-    total_style = ParagraphStyle('TotalStyle', fontSize=11, textColor=COULEUR_GRIS_FONCE, alignment=TA_RIGHT, fontName='Helvetica-Bold')
-    
-    # Totaux alignés à droite
     totals_data = [
         ['', 'Total HT', f"{total_ht:.2f} €"],
         ['', 'Montant total de la TVA', f"{total_tva:.2f} €"],
@@ -328,17 +287,13 @@ def generate_student_style_devis(devis_data):
         ('FONTSIZE', (1, 0), (-1, -1), 11),
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        # Ligne sous Total TTC
         ('LINEBELOW', (1, 2), (-1, 2), 1, COULEUR_GRIS_FONCE),
     ]))
     
     elements.append(totals_table)
     elements.append(Spacer(1, 10*mm))
     
-    # ==========================================
     # 8. CONDITIONS DE PAIEMENT
-    # ==========================================
-    
     section_title_style = ParagraphStyle('SectionTitleStyle', fontSize=12, textColor=COULEUR_GRIS_FONCE, fontName='Helvetica-Bold')
     section_content_style = ParagraphStyle('SectionContentStyle', fontSize=10, textColor=COULEUR_GRIS_FONCE)
     small_text_style = ParagraphStyle('SmallTextStyle', fontSize=8, textColor=COULEUR_GRIS_MOYEN)
@@ -352,10 +307,7 @@ def generate_student_style_devis(devis_data):
     
     elements.append(Spacer(1, 10*mm))
     
-    # ==========================================
     # 9. COORDONNÉES BANCAIRES
-    # ==========================================
-    
     elements.append(Paragraph("COORDONNÉES BANCAIRES", section_title_style))
     
     bank_content = f"""Banque: {devis_data.get('banque_nom', 'Qonto')}<br/>
@@ -373,10 +325,7 @@ BIC: {devis_data.get('banque_bic', 'QNTOFRP1XXX')}"""
     
     elements.append(Spacer(1, 15*mm))
     
-    # ==========================================
     # 10. BON POUR ACCORD
-    # ==========================================
-    
     signature_data = [
         ['', 'Bon pour accord<br/>Date et signature:']
     ]
@@ -394,7 +343,7 @@ BIC: {devis_data.get('banque_bic', 'QNTOFRP1XXX')}"""
     doc.build(elements)
     return filename
 
-# Test si lancé directement
+# Test
 if __name__ == "__main__":
     test_data = {
         "numero": "D-2025-0927-002",
@@ -407,35 +356,24 @@ if __name__ == "__main__":
         "fournisseur_siret": "93968736400017",
         "client_nom": "Teddy Carrillo - Efficity",
         "client_email": "tcarrillo@efficity.com",
-        "logo_url": "https://via.placeholder.com/150x50/808080/ffffff?text=Infinytia",
-        "texte_intro": "Suite à notre entretien concernant vos besoins en automatisation CRM immobilier, nous avons le plaisir de vous proposer notre solution complète.",
         "items": [
             {
-                "description": "Développement d'un système d'automatisation CRM complet pour la gestion de leads immobiliers",
+                "description": "Développement CRM complet",
                 "quantite": 1,
                 "prix_unitaire": 2700.0,
                 "tva_taux": 20,
                 "details": [
-                    "Phase 1 : Architecture et conception - Analyse du workflow, architecture système, définition des intégrations",
-                    "Phase 2 : Module de gestion des leads - Réception automatique, réservation pour Teddy, interface de gestion",
-                    "Phase 3 : Module d'analyse IA - Analyse photos/captures, extraction données, validation automatique, notifications",
-                    "Phase 4 : Communication automatisée - Emails automatiques, SMS simultanés, gestion réponses, relances J+7/J+30",
-                    "Phase 5 : Planification intelligente - RDV automatique (délai 72h, créneaux 1h30), intégration calendrier, rappels 24h",
-                    "Phase 6 : Suivi personnalisé - Relances selon échéances (15j/1m/1.5m/2m), rappels actualisation estimations",
-                    "Phase 7 : Gestion mandats - Confirmation J-15, demande pièces, RDV mandat 30min, SMS signature, RDV photo/vidéo",
-                    "Phase 8 : Intégration Slack - Interface Teddy, notifications temps réel, commandes rapides, historique, statistiques",
-                    "Livrables : CRM fonctionnel, interface Slack, IA intégrée, communication multi-canal, planificateur RDV, suivi personnalisé, gestion mandats, support 1 mois",
-                    "Délais : 4-5 semaines (conception, développement, intégrations, tests, déploiement)",
-                    "Garantie : 3 mois de bon fonctionnement avec maintenance corrective incluse"
+                    "Phase 1 : Architecture et conception",
+                    "Phase 2 : Module de gestion des leads",
+                    "Livrables : CRM fonctionnel, support 1 mois"
                 ]
             }
         ],
         "conditions_paiement": "50% à la commande, 50% à la livraison",
-        "penalites_retard": "En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée ainsi qu'une indemnité forfaitaire de 40€.",
         "banque_nom": "Qonto",
         "banque_iban": "FR7616958000013234941023663",
         "banque_bic": "QNTOFRP1XXX"
     }
     
     filename = generate_student_style_devis(test_data)
-    print(f"PDF test généré : {filename}")
+    print(f"PDF généré : {filename}")
