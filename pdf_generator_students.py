@@ -428,8 +428,7 @@ def create_footer_sections(devis_data):
 # Fonction principale compatible avec Railway
 def generate_student_style_devis(devis_data):
     """
-    Fonction principale compatible avec votre système Railway
-    Génère un devis PDF vraiment propre et simple
+    Génère un devis PDF avec la structure du modèle rouge mais sans couleurs
     """
     theme_colors = THEMES_COULEURS['bleu']
     
@@ -437,150 +436,239 @@ def generate_student_style_devis(devis_data):
     os.makedirs('generated', exist_ok=True)
     filename = os.path.join('generated', f'devis_{devis_data["numero"]}.pdf')
     
-    # Canvas simple sans footer compliqué
-    def make_simple_canvas(*args, **kwargs):
-        return canvas.Canvas(*args, **kwargs)
-    
     # Configuration du document
     doc = SimpleDocTemplate(
         filename,
         pagesize=A4,
         rightMargin=2*cm,
         leftMargin=2*cm,
-        topMargin=2*cm,
-        bottomMargin=3*cm,
-        canvasmaker=make_simple_canvas
+        topMargin=1.5*cm,
+        bottomMargin=2*cm
     )
     
     elements = []
     
-    # 1. TITRE DEVIS SEULEMENT
-    title_style = ParagraphStyle(
-        'TitleStyle',
-        fontSize=28,
-        textColor=theme_colors['principale'],
-        fontName='Helvetica-Bold',
-        alignment=TA_LEFT,
-        spaceAfter=15*mm
-    )
-    elements.append(Paragraph("Devis", title_style))
+    # 1. EN-TÊTE : Logo + Titre + Infos entreprise (comme le modèle rouge)
+    # Télécharger le logo
+    logo_element = None
+    if devis_data.get('logo_url'):
+        try:
+            logo_data = download_logo(devis_data['logo_url'])
+            if logo_data:
+                logo_element = Image(logo_data, width=3*cm, height=2*cm)
+        except:
+            pass
     
-    # 2. INFORMATIONS DU DEVIS - LIGNES SIMPLES
-    info_style = ParagraphStyle('InfoStyle', fontSize=11, textColor=theme_colors['principale'], fontName='Helvetica-Bold', spaceAfter=3*mm)
-    value_style = ParagraphStyle('ValueStyle', fontSize=11, textColor=theme_colors['secondaire'], spaceAfter=6*mm)
+    # Si pas de logo, créer un placeholder
+    if not logo_element:
+        logo_placeholder = Paragraph("Logo", ParagraphStyle('LogoStyle', fontSize=12, alignment=TA_CENTER, fontName='Helvetica-Bold'))
     
-    elements.append(Paragraph("Numéro de devis", info_style))
-    elements.append(Paragraph(devis_data.get('numero', ''), value_style))
+    # En-tête avec logo à droite et titre au centre
+    header_data = [
+        [
+            Paragraph(f"<b>{devis_data.get('fournisseur_nom', 'INFINYTIA')}</b><br/>{devis_data.get('fournisseur_adresse', '61 Rue De Lyon')}<br/>{devis_data.get('fournisseur_ville', '75012 Paris, FR')}", 
+                     ParagraphStyle('CompanyStyle', fontSize=9, textColor=colors.black)),
+            Paragraph("<b>Devis</b>", ParagraphStyle('TitleStyle', fontSize=24, textColor=colors.black, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+            logo_element if logo_element else logo_placeholder
+        ]
+    ]
     
-    elements.append(Paragraph("Date d'émission", info_style))
-    elements.append(Paragraph(devis_data.get('date_emission', ''), value_style))
+    header_table = Table(header_data, colWidths=[6*cm, 6*cm, 5*cm])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
+    ]))
     
-    elements.append(Paragraph("Date d'expiration", info_style))
-    elements.append(Paragraph(devis_data.get('date_expiration', ''), value_style))
-    
+    elements.append(header_table)
     elements.append(Spacer(1, 10*mm))
     
-    # 3. FOURNISSEUR ET CLIENT - VRAIMENT EN LIGNES SIMPLES
-    section_style = ParagraphStyle('SectionStyle', fontSize=12, textColor=theme_colors['principale'], fontName='Helvetica-Bold', spaceAfter=5*mm)
-    text_style = ParagraphStyle('TextStyle', fontSize=10, textColor=theme_colors['secondaire'], spaceAfter=2*mm)
+    # 2. INFORMATIONS CLIENT ET DEVIS (comme le modèle rouge)
+    # Partie gauche : Client
+    client_content = f"""<b>Client :</b><br/>
+<b>{devis_data.get('client_nom', '')}</b><br/>
+{devis_data.get('client_adresse', '')}<br/>
+{devis_data.get('client_ville', '')}<br/>
+{devis_data.get('client_email', '')}"""
     
-    # FOURNISSEUR
-    elements.append(Paragraph("FOURNISSEUR", section_style))
-    elements.append(Paragraph(devis_data.get('fournisseur_nom', 'INFINYTIA'), text_style))
-    elements.append(Paragraph(devis_data.get('fournisseur_adresse', '61 Rue De Lyon'), text_style))
-    elements.append(Paragraph(devis_data.get('fournisseur_ville', '75012 Paris, FR'), text_style))
-    elements.append(Paragraph(devis_data.get('fournisseur_email', 'tony@infinytia.com'), text_style))
-    elements.append(Paragraph(f"SIRET: {devis_data.get('fournisseur_siret', '93968736400017')}", text_style))
+    # Partie droite : Infos devis
+    devis_content = f"""<b>Date :</b> {devis_data.get('date_emission', '')}<br/>
+<b>Référence :</b> {devis_data.get('numero', '')}<br/>
+<b>Date de validité :</b> {devis_data.get('date_expiration', '')}"""
     
-    elements.append(Spacer(1, 8*mm))
+    client_devis_data = [
+        [
+            Paragraph(client_content, ParagraphStyle('ClientStyle', fontSize=9, textColor=colors.black)),
+            Paragraph(devis_content, ParagraphStyle('DevisStyle', fontSize=9, textColor=colors.black))
+        ]
+    ]
     
-    # CLIENT
-    elements.append(Paragraph("CLIENT", section_style))
-    elements.append(Paragraph(devis_data.get('client_nom', ''), text_style))
-    if devis_data.get('client_adresse'):
-        elements.append(Paragraph(devis_data.get('client_adresse', ''), text_style))
-    if devis_data.get('client_ville'):
-        elements.append(Paragraph(devis_data.get('client_ville', ''), text_style))
-    elements.append(Paragraph(devis_data.get('client_email', ''), text_style))
-    if devis_data.get('client_tva'):
-        elements.append(Paragraph(f"TVA: {devis_data.get('client_tva', '')}", text_style))
+    client_devis_table = Table(client_devis_data, colWidths=[10*cm, 7*cm])
+    client_devis_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.lightgrey),
+        ('BOX', (0, 0), (-1, -1), 1, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 1, colors.black),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
     
-    elements.append(Spacer(1, 15*mm))
+    elements.append(client_devis_table)
+    elements.append(Spacer(1, 10*mm))
     
-    # 4. ARTICLES - VRAIMENT SIMPLE
-    elements.append(Paragraph("PRESTATIONS", section_style))
+    # 3. INFORMATIONS ADDITIONNELLES (optionnel)
+    if devis_data.get('texte_intro'):
+        elements.append(Paragraph(f"<b>Informations additionnelles :</b><br/>{devis_data.get('texte_intro')}", 
+                                 ParagraphStyle('InfoStyle', fontSize=9, textColor=colors.black, spaceAfter=10)))
     
-    article_title_style = ParagraphStyle('ArticleTitleStyle', fontSize=11, textColor=theme_colors['principale'], fontName='Helvetica-Bold', spaceAfter=3*mm)
-    article_price_style = ParagraphStyle('ArticlePriceStyle', fontSize=10, textColor=theme_colors['secondaire'], spaceAfter=3*mm)
-    detail_style = ParagraphStyle('DetailStyle', fontSize=9, textColor=theme_colors['secondaire'], leftIndent=5*mm, spaceAfter=2*mm)
+    # 4. TABLEAU DES ARTICLES (exactement comme le modèle rouge)
+    # En-tête du tableau
+    articles_data = []
+    
+    # Headers
+    headers = [
+        "Description",
+        "Quantité", 
+        "Unité",
+        "Prix unitaire HT",
+        "% TVA",
+        "Total TVA",
+        "Total TTC"
+    ]
+    
+    header_style = ParagraphStyle('HeaderStyle', fontSize=9, fontName='Helvetica-Bold', alignment=TA_CENTER)
+    headers_formatted = [Paragraph(h, header_style) for h in headers]
+    articles_data.append(headers_formatted)
+    
+    # Articles
+    article_style = ParagraphStyle('ArticleStyle', fontSize=9, textColor=colors.black)
+    number_style = ParagraphStyle('NumberStyle', fontSize=9, textColor=colors.black, alignment=TA_CENTER)
     
     for item in devis_data.get('items', []):
-        prix_unitaire = item.get('prix_unitaire', 0)
-        quantite = item.get('quantite', 1)
-        tva_taux = item.get('tva_taux', 20)
+        prix_unitaire = float(item.get('prix_unitaire', 0))
+        quantite = int(item.get('quantite', 1))
+        tva_taux = float(item.get('tva_taux', 20))
+        
         total_ht = prix_unitaire * quantite
+        total_tva = total_ht * (tva_taux / 100)
+        total_ttc = total_ht + total_tva
         
-        # Titre
-        elements.append(Paragraph(item.get('description', ''), article_title_style))
-        
-        # Prix
-        prix_text = f"Quantité: {quantite} - Prix unitaire: {prix_unitaire:.2f}€ - TVA: {tva_taux}% - Total: {total_ht:.2f}€"
-        elements.append(Paragraph(prix_text, article_price_style))
-        
-        # Détails
-        if item.get('details'):
-            for detail in item.get('details', []):
-                elements.append(Paragraph(f"• {detail}", detail_style))
-        
-        elements.append(Spacer(1, 8*mm))
+        row = [
+            Paragraph(item.get('description', ''), article_style),
+            Paragraph(str(quantite), number_style),
+            Paragraph("unité", number_style),  # Unité par défaut
+            Paragraph(f"{prix_unitaire:.2f} €", number_style),
+            Paragraph(f"{tva_taux:.0f} %", number_style),
+            Paragraph(f"{total_tva:.2f} €", number_style),
+            Paragraph(f"{total_ttc:.2f} €", number_style)
+        ]
+        articles_data.append(row)
     
-    # 5. TOTAUX - ALIGNÉS À DROITE
-    total_style = ParagraphStyle('TotalStyle', fontSize=12, textColor=theme_colors['principale'], alignment=TA_RIGHT, spaceAfter=3*mm)
-    total_bold_style = ParagraphStyle('TotalBoldStyle', fontSize=14, textColor=theme_colors['principale'], fontName='Helvetica-Bold', alignment=TA_RIGHT, spaceAfter=3*mm)
-    
-    # Calcul
-    total_ht = sum(item.get('prix_unitaire', 0) * item.get('quantite', 1) for item in devis_data.get('items', []))
-    total_tva = sum((item.get('prix_unitaire', 0) * item.get('quantite', 1)) * (item.get('tva_taux', 20) / 100) for item in devis_data.get('items', []))
-    total_ttc = total_ht + total_tva
+    # Calcul des totaux
+    total_ht = sum(float(item.get('prix_unitaire', 0)) * int(item.get('quantite', 1)) for item in devis_data.get('items', []))
+    total_tva_calc = sum((float(item.get('prix_unitaire', 0)) * int(item.get('quantite', 1))) * (float(item.get('tva_taux', 20)) / 100) for item in devis_data.get('items', []))
+    total_ttc_calc = total_ht + total_tva_calc
     
     # Utiliser les totaux fournis si disponibles
     if 'total_ht' in devis_data:
-        total_ht = devis_data['total_ht']
+        total_ht = float(devis_data['total_ht'])
     if 'total_tva' in devis_data:
-        total_tva = devis_data['total_tva']  
+        total_tva_calc = float(devis_data['total_tva'])
     if 'total_ttc' in devis_data:
-        total_ttc = devis_data['total_ttc']
+        total_ttc_calc = float(devis_data['total_ttc'])
     
-    elements.append(Spacer(1, 10*mm))
-    elements.append(Paragraph(f"Total HT: {total_ht:.2f}€", total_style))
-    elements.append(Paragraph(f"TVA: {total_tva:.2f}€", total_style))
-    elements.append(HRFlowable(width="25%", thickness=1, color=theme_colors['principale'], hAlign='RIGHT'))
-    elements.append(Paragraph(f"Total TTC: {total_ttc:.2f}€", total_bold_style))
+    # Lignes de totaux
+    totals_style = ParagraphStyle('TotalsStyle', fontSize=9, fontName='Helvetica-Bold', alignment=TA_RIGHT)
+    
+    # Total HT
+    articles_data.append([
+        "", "", "", "", "", 
+        Paragraph("Total HT", totals_style),
+        Paragraph(f"{total_ht:.2f} €", totals_style)
+    ])
+    
+    # Total TVA
+    articles_data.append([
+        "", "", "", "", "",
+        Paragraph("Total TVA", totals_style),
+        Paragraph(f"{total_tva_calc:.2f} €", totals_style)
+    ])
+    
+    # Total TTC
+    articles_data.append([
+        "", "", "", "", "",
+        Paragraph("Total TTC", totals_style),
+        Paragraph(f"{total_ttc_calc:.2f} €", totals_style)
+    ])
+    
+    # Créer le tableau
+    articles_table = Table(articles_data, colWidths=[5*cm, 2*cm, 2*cm, 2.5*cm, 1.5*cm, 2*cm, 2*cm])
+    
+    # Style du tableau
+    table_style = [
+        # En-tête
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        
+        # Grille
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        
+        # Alignement
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),  # Colonnes numériques centrées
+        
+        # Padding
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        
+        # Totaux en gras
+        ('FONTNAME', (0, -3), (-1, -1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, -3), (-1, -1), colors.lightgrey),
+    ]
+    
+    articles_table.setStyle(TableStyle(table_style))
+    elements.append(articles_table)
     
     elements.append(Spacer(1, 15*mm))
     
-    # 6. CONDITIONS
-    elements.append(Paragraph("CONDITIONS DE PAIEMENT", section_style))
-    elements.append(Paragraph(devis_data.get('conditions_paiement', '50% à la commande, 50% à la livraison'), text_style))
+    # 5. FOOTER avec signature (comme le modèle rouge)
+    footer_content = f"""<b>Coordonnées</b><br/>
+{devis_data.get('fournisseur_nom', 'INFINYTIA')}<br/>
+Téléphone : {devis_data.get('fournisseur_telephone', '+33 1 42 92 59 59')}<br/>
+E-mail : {devis_data.get('fournisseur_email', 'contact@infinytia.com')}"""
     
-    elements.append(Spacer(1, 10*mm))
+    bank_content = f"""<b>Détails bancaires</b><br/>
+Banque: {devis_data.get('banque_nom', 'Qonto')}<br/>
+IBAN: {devis_data.get('banque_iban', 'FR7616958000013234941023663')}<br/>
+BIC/Swift: {devis_data.get('banque_bic', 'QNTOFRP1XXX')}"""
     
-    elements.append(Paragraph("COORDONNÉES BANCAIRES", section_style))
-    elements.append(Paragraph(f"Banque: {devis_data.get('banque_nom', 'Qonto')}", text_style))
-    elements.append(Paragraph(f"IBAN: {devis_data.get('banque_iban', 'FR7616958000013234941023663')}", text_style))
-    elements.append(Paragraph(f"BIC: {devis_data.get('banque_bic', 'QNTOFRP1XXX')}", text_style))
+    signature_content = """Signature du client (précédée de la mention « Bon pour accord »)"""
     
-    elements.append(Spacer(1, 10*mm))
+    footer_data = [
+        [
+            Paragraph(footer_content, ParagraphStyle('FooterStyle', fontSize=8, textColor=colors.black)),
+            Paragraph(bank_content, ParagraphStyle('FooterStyle', fontSize=8, textColor=colors.black)),
+            Paragraph(signature_content, ParagraphStyle('FooterStyle', fontSize=8, textColor=colors.black, alignment=TA_CENTER))
+        ]
+    ]
     
-    conclusion_text = devis_data.get('texte_conclusion', 'Cette proposition reste valable 30 jours. Nous restons à votre entière disposition pour tout complément d\'information.')
-    elements.append(Paragraph(conclusion_text, text_style))
+    footer_table = Table(footer_data, colWidths=[5.5*cm, 5.5*cm, 6*cm])
+    footer_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOX', (0, 0), (-1, -1), 1, colors.black),
+        ('INNERGRID', (0, 0), (-1, -1), 1, colors.black),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
     
-    elements.append(Spacer(1, 15*mm))
-    
-    # 7. SIGNATURE
-    signature_style = ParagraphStyle('SignatureStyle', fontSize=11, textColor=theme_colors['principale'], fontName='Helvetica-Bold', alignment=TA_RIGHT)
-    elements.append(Paragraph("Bon pour accord", signature_style))
-    elements.append(Paragraph("Date et signature:", signature_style))
+    elements.append(footer_table)
     
     # Construction du PDF
     doc.build(elements)
