@@ -4,6 +4,7 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import uuid
 import os
+from functools import wraps  # AJOUT: Import pour le décorateur
 from pdf_generator_students import generate_student_style_devis
 
 # Créer l'application Flask
@@ -13,6 +14,28 @@ CORS(app)  # Permet les requêtes depuis d'autres domaines
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'generated'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# AJOUT: Clés API (à stocker dans des variables d'environnement en production)
+API_KEY_1 = os.environ.get('API_KEY_1', 'your-secret-key-1-here')
+API_KEY_2 = os.environ.get('API_KEY_2', 'your-secret-key-2-here')
+
+# AJOUT: Décorateur pour vérifier les 2 clés API
+def require_api_keys(f):
+    """Décorateur pour vérifier les 2 clés API"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Vérifier les headers
+        key1 = request.headers.get('X-API-Key-1')
+        key2 = request.headers.get('X-API-Key-2')
+        
+        if not key1 or not key2:
+            return jsonify({"error": "Clés API manquantes"}), 401
+        
+        if key1 != API_KEY_1 or key2 != API_KEY_2:
+            return jsonify({"error": "Clés API invalides"}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
 
 @app.route('/', methods=['GET'])
 def documentation():
@@ -30,13 +53,30 @@ def documentation():
             "GET /health": "Vérifier l'état de l'API",
             "GET /api/exemple": "Obtenir un exemple de données JSON",
             "POST /api/devis": "Créer un devis personnalisé",
-            "POST /api/test": "Générer un devis de test rapide"
+            "POST /api/test": "Générer un devis de test rapide",
+            "GET /api/test-auth": "Tester l'authentification avec les clés API"  # AJOUT
+        },
+        
+        # AJOUT: Section authentification
+        "authentification": {
+            "description": "Cette API nécessite 2 clés API dans les headers",
+            "headers_requis": {
+                "X-API-Key-1": "Votre première clé API",
+                "X-API-Key-2": "Votre deuxième clé API"
+            },
+            "exemple_curl_auth": """
+curl -X GET http://localhost:5000/api/test-auth \\
+  -H "X-API-Key-1: your-secret-key-1-here" \\
+  -H "X-API-Key-2: your-secret-key-2-here"
+            """
         },
         
         "utilisation": {
             "exemple_curl": """
 curl -X POST http://localhost:5000/api/devis \\
   -H "Content-Type: application/json" \\
+  -H "X-API-Key-1: your-secret-key-1-here" \\
+  -H "X-API-Key-2: your-secret-key-2-here" \\
   -d '{
     "client_nom": "Mon Client",
     "client_adresse": "123 Rue Example, Paris",
@@ -55,7 +95,11 @@ curl -X POST http://localhost:5000/api/devis \\
             "exemple_javascript": """
 fetch('/api/devis', {
   method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-API-Key-1': 'your-secret-key-1-here',
+    'X-API-Key-2': 'your-secret-key-2-here'
+  },
   body: JSON.stringify({
     client_nom: 'Mon Client',
     items: [{
@@ -160,6 +204,7 @@ def get_exemple():
     }), 200
 
 @app.route('/api/devis', methods=['POST'])
+@require_api_keys  # AJOUT: Décorateur d'authentification
 def create_devis():
     """
     Créer un devis personnalisé avec les données fournies
@@ -268,6 +313,7 @@ def create_devis():
         return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
 
 @app.route('/api/test', methods=['POST'])
+@require_api_keys  # AJOUT: Décorateur d'authentification
 def test_devis():
     """
     Générer un devis de test rapidement (sans paramètres)
@@ -323,13 +369,20 @@ def test_devis():
         print(f"❌ Erreur test: {str(e)}")
         return jsonify({"error": f"Erreur lors du test: {str(e)}"}), 500
 
+# AJOUT: Endpoint pour tester l'authentification
+@app.route('/api/test-auth', methods=['GET'])
+@require_api_keys
+def test_auth():
+    """Endpoint pour tester l'authentification"""
+    return jsonify({"message": "Authentification réussie!"}), 200
+
 # Gestionnaire d'erreur 404
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({
         "error": "❌ Endpoint non trouvé",
         "message": "Consultez la documentation sur '/' pour voir les endpoints disponibles",
-        "endpoints_disponibles": ["/", "/health", "/api/exemple", "/api/devis", "/api/test"]
+        "endpoints_disponibles": ["/", "/health", "/api/exemple", "/api/devis", "/api/test", "/api/test-auth"]  # MODIFIÉ: Ajout de test-auth
     }), 404
 
 # Gestionnaire d'erreur 500
