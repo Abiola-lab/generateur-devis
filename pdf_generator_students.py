@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.units import cm, mm,
+from reportlab.lib.units import cm, mm
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER, TA_JUSTIFY
@@ -509,11 +509,9 @@ BIC: {data.get('banque_bic', 'QNTOFRP1XXX')}"""
     
     return filename
 
-# Fonction pour générer un PDF de devis (compatibilité)
 def generate_pdf_devis(devis, theme='bleu'):
     """Générer un PDF de devis avec le thème de couleur choisi"""
     
-    # Convertir l'objet Devis en dictionnaire
     data = {
         'numero': devis.numero,
         'date_emission': devis.date_emission,
@@ -547,7 +545,6 @@ def generate_pdf_devis(devis, theme='bleu'):
         'items': []
     }
     
-    # Convertir les items
     for item in devis.items:
         data['items'].append({
             'description': item.description,
