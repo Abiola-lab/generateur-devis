@@ -362,6 +362,13 @@ def generate_pdf_without_tables(company_info, devis_data, client_info, filename,
     """
     theme_colors = THEMES_COULEURS.get(theme, THEMES_COULEURS['bleu'])
     
+    # Créer une classe canvas personnalisée pour ce document spécifique
+    class DocumentCanvas(CustomCanvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.company_info = company_info
+            self.theme = theme
+    
     # Configuration du document
     doc = SimpleDocTemplate(
         filename,
@@ -370,12 +377,8 @@ def generate_pdf_without_tables(company_info, devis_data, client_info, filename,
         leftMargin=2*cm,
         topMargin=2*cm,
         bottomMargin=3*cm,
-        canvasmaker=CustomCanvas
+        canvasmaker=DocumentCanvas
     )
-    
-    # Configuration du canvas personnalisé
-    doc.canvasmaker.company_info = company_info
-    doc.canvasmaker.theme = theme
     
     elements = []
     
@@ -422,6 +425,13 @@ def generate_student_style_devis(devis_data):
     os.makedirs('generated', exist_ok=True)
     filename = os.path.join('generated', f'devis_{devis_data["numero"]}.pdf')
     
+    # Créer une classe canvas personnalisée pour ce document spécifique
+    class DocumentCanvas(CustomCanvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.company_info = {'nom': devis_data.get('fournisseur_nom', 'INFINYTIA')}
+            self.theme = 'bleu'
+    
     # Configuration du document
     doc = SimpleDocTemplate(
         filename,
@@ -430,14 +440,8 @@ def generate_student_style_devis(devis_data):
         leftMargin=2*cm,
         topMargin=2*cm,
         bottomMargin=3*cm,
-        canvasmaker=CustomCanvas
+        canvasmaker=DocumentCanvas
     )
-    
-    # Configuration du canvas
-    doc.canvasmaker.company_info = {
-        'nom': devis_data.get('fournisseur_nom', 'INFINYTIA')
-    }
-    doc.canvasmaker.theme = 'bleu'
     
     elements = []
     
