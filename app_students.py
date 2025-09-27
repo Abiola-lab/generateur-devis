@@ -4,8 +4,9 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import uuid
 import os
-from functools import wraps  # AJOUT: Import pour le décorateur
-from pdf_generator_students import generate_student_style_devis
+from functools import wraps
+from models import Devis, DevisItem, Facture
+from pdf_generator_students import generate_student_style_devis, generate_pdf_facture
 
 # Créer l'application Flask
 app = Flask(__name__)
@@ -15,11 +16,13 @@ CORS(app)  # Permet les requêtes depuis d'autres domaines
 app.config['UPLOAD_FOLDER'] = 'generated'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# AJOUT: Clés API (à stocker dans des variables d'environnement en production)
+# Clés API (à stocker dans des variables d'environnement en production)
 API_KEY_1 = os.environ.get('API_KEY_1', 'your-secret-key-1-here')
 API_KEY_2 = os.environ.get('API_KEY_2', 'your-secret-key-2-here')
 
-# AJOUT: Décorateur pour vérifier les 2 clés API
+# Thèmes disponibles
+THEMES_DISPONIBLES = ['bleu', 'vert', 'rouge', 'violet', 'orange', 'noir']
+
 def require_api_keys(f):
     """Décorateur pour vérifier les 2 clés API"""
     @wraps(f)
@@ -51,13 +54,14 @@ def documentation():
         "endpoints": {
             "GET /": "Cette documentation",
             "GET /health": "Vérifier l'état de l'API",
+            "GET /api/themes": "Obtenir la liste des thèmes disponibles",
             "GET /api/exemple": "Obtenir un exemple de données JSON",
             "POST /api/devis": "Créer un devis personnalisé",
+            "POST /api/facture": "Créer une facture personnalisée",
             "POST /api/test": "Générer un devis de test rapide",
-            "GET /api/test-auth": "Tester l'authentification avec les clés API"  # AJOUT
+            "GET /api/test-auth": "Tester l'authentification avec les clés API"
         },
         
-        # AJOUT: Section authentification
         "authentification": {
             "description": "Cette API nécessite 2 clés API dans les headers",
             "headers_requis": {
@@ -81,6 +85,7 @@ curl -X POST http://localhost:5000/api/devis \\
     "client_nom": "Mon Client",
     "client_adresse": "123 Rue Example, Paris",
     "fournisseur_nom": "Ma Société",
+    "theme": "bleu",
     "items": [
       {
         "description": "Formation web",
@@ -102,6 +107,7 @@ fetch('/api/devis', {
   },
   body: JSON.stringify({
     client_nom: 'Mon Client',
+    theme: 'vert',
     items: [{
       description: 'Ma prestation',
       prix_unitaire: 500.0,
@@ -138,6 +144,14 @@ def health_check():
         "version": "1.0.0"
     }), 200
 
+@app.route('/api/themes', methods=['GET'])
+def get_themes():
+    """Retourner la liste des thèmes disponibles"""
+    return jsonify({
+        "themes_disponibles": THEMES_DISPONIBLES,
+        "theme_par_defaut": "bleu"
+    }), 200
+
 @app.route('/api/exemple', methods=['GET'])
 def get_exemple():
     """
@@ -170,22 +184,36 @@ def get_exemple():
         "banque_iban": "FR76 1234 5678 9012 3456 7890 123",
         "banque_bic": "CCBPFRPPXXX",
         
+        # Logo et thème
+        "logo_url": "https://example.com/logo.png",
+        "theme": "bleu",
+        
+        # Textes personnalisés
+        "texte_intro": "Suite à notre entretien, nous avons le plaisir de vous proposer nos services.",
+        "texte_conclusion": "Nous restons à votre disposition pour toute information complémentaire.",
+        
         # Articles/prestations
         "items": [
             {
                 "description": "Formation développement web complète",
                 "prix_unitaire": 800.0,
-                "quantite": 5
+                "quantite": 5,
+                "tva_taux": 20,
+                "remise": 0
             },
             {
                 "description": "Support technique post-formation",
                 "prix_unitaire": 150.0,
-                "quantite": 2
+                "quantite": 2,
+                "tva_taux": 20,
+                "remise": 0
             },
             {
                 "description": "Accès plateforme e-learning (1 an)",
                 "prix_unitaire": 299.0,
-                "quantite": 1
+                "quantite": 1,
+                "tva_taux": 20,
+                "remise": 50
             }
         ]
     }
@@ -204,7 +232,7 @@ def get_exemple():
     }), 200
 
 @app.route('/api/devis', methods=['POST'])
-@require_api_keys  # AJOUT: Décorateur d'authentification
+@require_api_keys
 def create_devis():
     """
     Créer un devis personnalisé avec les données fournies
@@ -214,6 +242,7 @@ def create_devis():
         "client_nom": "Mon Client",
         "client_adresse": "123 Rue Example",
         "fournisseur_nom": "Ma Société", 
+        "theme": "bleu",
         "items": [
             {
                 "description": "Ma prestation",
@@ -229,6 +258,11 @@ def create_devis():
         
         if not data:
             return jsonify({"error": "❌ Aucune donnée reçue"}), 400
+        
+        # Récupérer et valider le thème
+        theme = data.get('theme', 'bleu')
+        if theme not in THEMES_DISPONIBLES:
+            theme = 'bleu'  # fallback vers le thème par défaut
         
         # Valider les champs obligatoires
         if not data.get('client_nom'):
@@ -256,64 +290,182 @@ def create_devis():
             except (ValueError, TypeError):
                 return jsonify({"error": f"❌ L'article {i+1} a une quantité invalide"}), 400
         
-        # Préparer les données avec valeurs par défaut
-        devis_data = {
-            "numero": data.get('numero', f"D-{datetime.now().year}-{str(uuid.uuid4())[:6].upper()}"),
-            "date_emission": data.get('date_emission', datetime.now().strftime('%d/%m/%Y')),
-            "date_expiration": data.get('date_expiration', (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')),
-            "date_debut": data.get('date_debut', ''),
+        # Créer l'objet devis avec toutes les options modifiables
+        devis = Devis(
+            numero=data.get('numero', f"D-{datetime.now().year}-{str(uuid.uuid4())[:3]}"),
+            date_emission=data.get('date_emission', datetime.now().strftime('%d/%m/%Y')),
+            date_expiration=data.get('date_expiration', (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')),
             
-            # Informations fournisseur (modifiables)
-            "fournisseur_nom": data.get('fournisseur_nom', 'Votre Entreprise'),
-            "fournisseur_adresse": data.get('fournisseur_adresse', ''),
-            "fournisseur_ville": data.get('fournisseur_ville', ''),
-            "fournisseur_email": data.get('fournisseur_email', ''),
-            "fournisseur_siret": data.get('fournisseur_siret', ''),
-            "fournisseur_telephone": data.get('fournisseur_telephone', ''),
+            # Informations fournisseur (tout modifiable)
+            fournisseur_nom=data.get('fournisseur_nom', 'Infinytia'),
+            fournisseur_adresse=data.get('fournisseur_adresse', '61 Rue De Lyon'),
+            fournisseur_ville=data.get('fournisseur_ville', '75012 Paris, FR'),
+            fournisseur_email=data.get('fournisseur_email', 'contact@infinytia.com'),
+            fournisseur_siret=data.get('fournisseur_siret', '93968736400017'),
+            fournisseur_telephone=data.get('fournisseur_telephone', '+33 1 23 45 67 89'),
             
             # Informations client
-            "client_nom": data.get('client_nom'),
-            "client_adresse": data.get('client_adresse', ''),
-            "client_ville": data.get('client_ville', ''),
-            "client_email": data.get('client_email', ''),
-            "client_siret": data.get('client_siret', ''),
-            "client_telephone": data.get('client_telephone', ''),
+            client_nom=data.get('client_nom'),
+            client_adresse=data.get('client_adresse'),
+            client_ville=data.get('client_ville'),
+            client_siret=data.get('client_siret'),
+            client_tva=data.get('client_tva'),
+            client_telephone=data.get('client_telephone', ''),
+            client_email=data.get('client_email', ''),
             
-            # Informations bancaires
-            "banque_nom": data.get('banque_nom', 'Votre Banque'),
-            "banque_iban": data.get('banque_iban', 'FR76 0000 0000 0000 0000 0000 000'),
-            "banque_bic": data.get('banque_bic', 'XXXXXXXX'),
+            # Logo de l'entreprise
+            logo_url=data.get('logo_url', ''),
             
-            # Articles (validation déjà faite)
-            "items": data.get('items', [])
-        }
+            # Informations bancaires (modifiables)
+            banque_nom=data.get('banque_nom', 'BNP Paribas'),
+            banque_iban=data.get('banque_iban', 'FR76 3000 4008 2800 0123 4567 890'),
+            banque_bic=data.get('banque_bic', 'BNPAFRPPXXX'),
+            
+            # Conditions de paiement
+            conditions_paiement=data.get('conditions_paiement', 'Paiement à 30 jours'),
+            penalites_retard=data.get('penalites_retard', 'En cas de retard de paiement, une pénalité de 3 fois le taux d\'intérêt légal sera appliquée'),
+            
+            # Texte personnalisé
+            texte_intro=data.get('texte_intro', ''),
+            texte_conclusion=data.get('texte_conclusion', 'Nous restons à votre disposition pour toute information complémentaire.'),
+            
+            # Articles
+            items=[]
+        )
         
-        # Générer le PDF
-        filename = generate_student_style_devis(devis_data)
+        # Ajouter les articles
+        for item_data in data.get('items', []):
+            item = DevisItem(
+                description=item_data.get('description'),
+                details=item_data.get('details', []),
+                quantite=item_data.get('quantite', 1),
+                prix_unitaire=item_data.get('prix_unitaire', 0),
+                tva_taux=item_data.get('tva_taux', 20),
+                remise=item_data.get('remise', 0)
+            )
+            devis.items.append(item)
         
-        # Vérifier que le fichier a été créé
-        if not os.path.exists(filename):
-            return jsonify({"error": "❌ Erreur lors de la génération du PDF"}), 500
+        # Calculer les totaux
+        devis.calculate_totals()
         
-        # Calculer le total pour le log
-        total = sum(item.get('prix_unitaire', 0) * item.get('quantite', 1) for item in devis_data['items'])
+        # Format de sortie demandé
+        output_format = data.get('format', 'pdf').lower()
         
-        print(f"✅ Devis généré : {devis_data['numero']} - {devis_data['client_nom']} - {total:.2f}€")
+        if output_format == 'pdf':
+            filename = generate_pdf_devis(devis, theme=theme)
+            mimetype = 'application/pdf'
+        elif output_format == 'docx':
+            # Pour l'instant, on ne supporte pas encore DOCX
+            return jsonify({"error": "Format DOCX pas encore implémenté"}), 400
+        else:
+            return jsonify({"error": "Format non supporté. Utilisez 'pdf' ou 'docx'"}), 400
         
-        # Retourner le fichier PDF
+        # Retourner le fichier
         return send_file(
             filename,
-            mimetype='application/pdf',
+            mimetype=mimetype,
             as_attachment=True,
-            download_name=f"devis_{devis_data['numero']}.pdf"
+            download_name=f"devis_{devis.numero}_{theme}.{output_format}"
         )
         
     except Exception as e:
-        print(f"❌ Erreur lors de la génération du devis: {str(e)}")
-        return jsonify({"error": f"Erreur serveur: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/facture', methods=['POST'])
+@require_api_keys
+def create_facture():
+    """Créer une nouvelle facture avec les données reçues"""
+    try:
+        data = request.json
+        
+        # Récupérer et valider le thème
+        theme = data.get('theme', 'bleu')
+        if theme not in THEMES_DISPONIBLES:
+            theme = 'bleu'  # fallback vers le thème par défaut
+        
+        # Créer l'objet facture
+        facture = Facture(
+            numero=data.get('numero', f"F-{datetime.now().year}-{str(uuid.uuid4())[:3]}"),
+            date_emission=data.get('date_emission', datetime.now().strftime('%d/%m/%Y')),
+            date_echeance=data.get('date_echeance', (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')),
+            
+            # Informations fournisseur
+            fournisseur_nom=data.get('fournisseur_nom', 'Infinytia'),
+            fournisseur_adresse=data.get('fournisseur_adresse', '61 Rue De Lyon'),
+            fournisseur_ville=data.get('fournisseur_ville', '75012 Paris, FR'),
+            fournisseur_email=data.get('fournisseur_email', 'contact@infinytia.com'),
+            fournisseur_siret=data.get('fournisseur_siret', '93968736400017'),
+            fournisseur_telephone=data.get('fournisseur_telephone', '+33 1 23 45 67 89'),
+            
+            # Informations client
+            client_nom=data.get('client_nom'),
+            client_adresse=data.get('client_adresse'),
+            client_ville=data.get('client_ville'),
+            client_siret=data.get('client_siret'),
+            client_tva=data.get('client_tva'),
+            client_telephone=data.get('client_telephone', ''),
+            client_email=data.get('client_email', ''),
+            
+            # Logo de l'entreprise
+            logo_url=data.get('logo_url', ''),
+            
+            # Informations bancaires
+            banque_nom=data.get('banque_nom', 'BNP Paribas'),
+            banque_iban=data.get('banque_iban', 'FR76 3000 4008 2800 0123 4567 890'),
+            banque_bic=data.get('banque_bic', 'BNPAFRPPXXX'),
+            
+            # Conditions et statut
+            conditions_paiement=data.get('conditions_paiement', 'Paiement à réception'),
+            penalites_retard=data.get('penalites_retard', 'En cas de retard de paiement, une pénalité de 3 fois le taux d\'intérêt légal sera appliquée'),
+            statut_paiement=data.get('statut_paiement', 'En attente'),
+            
+            # Références
+            numero_commande=data.get('numero_commande', ''),
+            reference_devis=data.get('reference_devis', ''),
+            
+            # Articles
+            items=[]
+        )
+        
+        # Ajouter les articles
+        for item_data in data.get('items', []):
+            item = DevisItem(
+                description=item_data.get('description'),
+                details=item_data.get('details', []),
+                quantite=item_data.get('quantite', 1),
+                prix_unitaire=item_data.get('prix_unitaire', 0),
+                tva_taux=item_data.get('tva_taux', 20),
+                remise=item_data.get('remise', 0)
+            )
+            facture.items.append(item)
+        
+        # Calculer les totaux
+        facture.calculate_totals()
+        
+        # Format de sortie
+        output_format = data.get('format', 'pdf').lower()
+        
+        if output_format == 'pdf':
+            filename = generate_pdf_facture(facture, theme=theme)
+            mimetype = 'application/pdf'
+        elif output_format == 'docx':
+            # Pour l'instant, on ne supporte pas encore DOCX
+            return jsonify({"error": "Format DOCX pas encore implémenté pour les factures"}), 400
+        else:
+            return jsonify({"error": "Format non supporté"}), 400
+        
+        return send_file(
+            filename,
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=f"facture_{facture.numero}_{theme}.{output_format}"
+        )
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/test', methods=['POST'])
-@require_api_keys  # AJOUT: Décorateur d'authentification
+@require_api_keys
 def test_devis():
     """
     Générer un devis de test rapidement (sans paramètres)
@@ -353,8 +505,43 @@ def test_devis():
             ]
         }
         
+        # Créer l'objet devis
+        devis = Devis(
+            numero=test_data['numero'],
+            date_emission=test_data['date_emission'],
+            date_expiration=test_data['date_expiration'],
+            
+            fournisseur_nom=test_data['fournisseur_nom'],
+            fournisseur_adresse=test_data['fournisseur_adresse'],
+            fournisseur_ville=test_data['fournisseur_ville'],
+            fournisseur_email=test_data['fournisseur_email'],
+            fournisseur_siret='12345678901234',
+            
+            client_nom=test_data['client_nom'],
+            client_adresse=test_data['client_adresse'],
+            client_ville='',
+            client_siret='',
+            client_tva='',
+            
+            banque_nom=test_data['banque_nom'],
+            banque_iban=test_data['banque_iban'],
+            banque_bic=test_data['banque_bic']
+        )
+        
+        # Ajouter les articles
+        for item_data in test_data['items']:
+            item = DevisItem(
+                description=item_data['description'],
+                prix_unitaire=item_data['prix_unitaire'],
+                quantite=item_data['quantite']
+            )
+            devis.items.append(item)
+        
+        # Calculer les totaux
+        devis.calculate_totals()
+        
         # Générer le PDF
-        filename = generate_student_style_devis(test_data)
+        filename = generate_pdf_devis(devis)
         
         print(f"🧪 Devis de test généré : {test_data['numero']}")
         
@@ -369,7 +556,6 @@ def test_devis():
         print(f"❌ Erreur test: {str(e)}")
         return jsonify({"error": f"Erreur lors du test: {str(e)}"}), 500
 
-# AJOUT: Endpoint pour tester l'authentification
 @app.route('/api/test-auth', methods=['GET'])
 @require_api_keys
 def test_auth():
@@ -382,7 +568,7 @@ def not_found(error):
     return jsonify({
         "error": "❌ Endpoint non trouvé",
         "message": "Consultez la documentation sur '/' pour voir les endpoints disponibles",
-        "endpoints_disponibles": ["/", "/health", "/api/exemple", "/api/devis", "/api/test", "/api/test-auth"]  # MODIFIÉ: Ajout de test-auth
+        "endpoints_disponibles": ["/", "/health", "/api/exemple", "/api/devis", "/api/test", "/api/test-auth", "/api/themes", "/api/facture"]
     }), 404
 
 # Gestionnaire d'erreur 500
