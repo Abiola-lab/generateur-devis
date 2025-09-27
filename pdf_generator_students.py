@@ -196,9 +196,9 @@ def generate_student_style_devis(data):
         [Paragraph(data['fournisseur_ville'], styles['CustomNormal']),
          Paragraph(data['client_ville'], styles['CustomNormal'])],
         [Paragraph(data['fournisseur_email'], styles['CustomNormal']),
-         Paragraph(data['client_siret'], styles['CustomNormal'])],
+         Paragraph(data.get('client_siret', ''), styles['CustomNormal'])],
         [Paragraph(data['fournisseur_siret'], styles['CustomNormal']),
-         Paragraph(f"Numéro de TVA: {data['client_tva']}", styles['CustomNormal'])]
+         Paragraph(f"Numéro de TVA: {data.get('client_tva', '')}", styles['CustomNormal'])]
     ]
     
     company_table = Table(company_info, colWidths=[9*cm, 9*cm])
