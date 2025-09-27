@@ -29,3 +29,21 @@ Cette application génère des devis au format PDF avec un design professionnel,
 
 ### Étapes d'installation
 ```bash
+# 1. Cloner le repository
+git clone https://github.com/votre-username/devis-generator.git
+cd devis-generator
+
+# 2. Créer un environnement virtuel
+python -m venv venv
+
+# 3. Activer l'environnement
+# Sur Windows:
+venv\Scripts\activate
+# Sur Mac/Linux:
+source venv/bin/activate
+
+# 4. Installer les dépendances
+pip install -r requirements.txt
+
+# 5. Lancer l'application
+python app_students.py
