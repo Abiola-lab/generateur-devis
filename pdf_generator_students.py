@@ -5,7 +5,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm, mm
 from reportlab.pdfgen import canvas
-from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT, TA_JUSTIFY
 import os
 import requests
 from io import BytesIO
@@ -775,16 +775,53 @@ def generate_facture_pdf(company_info, facture_data, client_info, filename="fact
     """Génère une facture PDF sans tableaux"""
     return generate_pdf_without_tables(company_info, facture_data, client_info, filename, theme)
 
+# Test de compatibilité Railway
 if __name__ == "__main__":
-    # Exemple d'utilisation
+    # Test avec les données du format Railway
+    test_data = {
+        "numero": "D-2025-0927-002",
+        "date_emission": "27/09/2025",
+        "date_expiration": "27/10/2025",
+        "fournisseur_nom": "INFINYTIA",
+        "fournisseur_adresse": "61 Rue De Lyon",
+        "fournisseur_ville": "75012 Paris, FR",
+        "fournisseur_email": "tony@infinytia.com",
+        "fournisseur_siret": "93968736400017",
+        "client_nom": "Teddy Carrillo - Efficity",
+        "client_email": "tcarrillo@efficity.com",
+        "items": [
+            {
+                "description": "Développement CRM complet",
+                "quantite": 1,
+                "prix_unitaire": 2700.0,
+                "tva_taux": 20,
+                "details": [
+                    "Phase 1 : Architecture et conception",
+                    "Phase 2 : Module de gestion des leads",
+                    "Livrables : CRM fonctionnel, support 1 mois"
+                ]
+            }
+        ],
+        "conditions_paiement": "50% à la commande, 50% à la livraison",
+        "banque_nom": "Qonto",
+        "banque_iban": "FR7616958000013234941023663",
+        "banque_bic": "QNTOFRP1XXX"
+    }
+    
+    print("Test de la fonction Railway compatible...")
+    filename = generate_student_style_devis(test_data)
+    print(f"✅ PDF généré : {filename}")
+    
+    # Test avec les nouvelles fonctions
+    print("\nTest des nouvelles fonctions...")
+    
     company_info = {
-        'nom': 'Mon Entreprise',
-        'adresse': '123 Rue de l\'Exemple',
+        'nom': 'INFINYTIA',
+        'adresse': '61 Rue De Lyon',
         'ville': 'Paris',
-        'code_postal': '75001',
+        'code_postal': '75012',
         'telephone': '01 23 45 67 89',
-        'email': 'contact@monentreprise.fr',
-        'logo_url': 'https://example.com/logo.png'  # ou 'logo_path': '/path/to/logo.png'
+        'email': 'contact@infinytia.com'
     }
     
     devis_data = {
@@ -796,13 +833,7 @@ if __name__ == "__main__":
                 'description': 'Formation Python avancée',
                 'quantite': 5,
                 'prix_unitaire': 500.0,
-                'tva_taux': 0.20
-            },
-            {
-                'description': 'Support technique',
-                'quantite': 10,
-                'prix_unitaire': 150.0,
-                'tva_taux': 0.20
+                'tva_taux': 20
             }
         ]
     }
@@ -816,11 +847,5 @@ if __name__ == "__main__":
         'email': 'client@test.fr'
     }
     
-    # Génération du PDF
-    print("Génération du devis sans tableaux...")
-    generate_devis_pdf(company_info, devis_data, client_info, "devis_sans_tableaux.pdf", theme='bleu')
-    print("✅ Devis généré : devis_sans_tableaux.pdf")
-    
-    print("Génération de la facture sans tableaux...")
-    generate_facture_pdf(company_info, devis_data, client_info, "facture_sans_tableaux.pdf", theme='vert')
-    print("✅ Facture générée : facture_sans_tableaux.pdf")
+    generate_devis_pdf(company_info, devis_data, client_info, "devis_new_api.pdf", theme='bleu')
+    print("✅ Devis avec nouvelle API généré : devis_new_api.pdf")
