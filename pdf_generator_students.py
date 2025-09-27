@@ -1,20 +1,51 @@
-# pdf_generator_students.py - VERSION CORRIGÉE - Style identique à votre image
+# pdf_generator_students.py - VERSION COMPLÈTE avec logo et bon design
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm, mm
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 import os
+import requests
+from io import BytesIO
 
 # Couleurs exactes de votre image
 COULEUR_HEADER_BLEU = colors.HexColor('#4a90b8')  # Bleu de "Devis N°"
 COULEUR_TEXTE_NOIR = colors.black
 COULEUR_BORDURE_GRIS = colors.HexColor('#cccccc')
 
+def download_logo(logo_url):
+    """Télécharger et traiter le logo depuis une URL"""
+    if not logo_url:
+        return None
+    
+    try:
+        response = requests.get(logo_url, timeout=10)
+        if response.status_code == 200:
+            img_data = BytesIO(response.content)
+            logo = Image(img_data)
+            
+            # Redimensionner le logo (hauteur max 2cm)
+            max_height = 2 * cm
+            logo.drawHeight = max_height
+            logo.drawWidth = max_height * logo.imageWidth / logo.imageHeight
+            
+            # Si le logo est trop large, le redimensionner par la largeur
+            max_width = 3 * cm
+            if logo.drawWidth > max_width:
+                logo.drawWidth = max_width
+                logo.drawHeight = max_width * logo.imageHeight / logo.imageWidth
+            
+            return logo
+    except Exception as e:
+        print(f"Erreur lors du téléchargement du logo: {e}")
+        return None
+    
+    return None
+
 def generate_student_style_devis(devis_data):
     """
-    Générer un devis PDF avec le style EXACT de votre image originale
+    Générer un devis PDF avec le style EXACT de votre image + gestion du logo
     """
     os.makedirs('generated', exist_ok=True)
     filename = os.path.join('generated', f'devis_{devis_data["numero"]}.pdf')
@@ -33,8 +64,11 @@ def generate_student_style_devis(devis_data):
     styles = getSampleStyleSheet()
     
     # ==========================================
-    # 1. EN-TÊTE "DEVIS N°" - Style exact de votre image
+    # 1. EN-TÊTE "DEVIS N°" + LOGO - Style exact de votre image
     # ==========================================
+    
+    # Télécharger le logo si une URL est fournie
+    logo = download_logo(devis_data.get('logo_url', ''))
     
     # Créer un style pour "Devis N°"
     devis_header_style = ParagraphStyle(
@@ -47,23 +81,42 @@ def generate_student_style_devis(devis_data):
         rightIndent=0
     )
     
-    # Tableau pour aligner "Devis N°" à droite
-    header_data = [
-        ['', Paragraph("Devis N°", devis_header_style)]
-    ]
-    
-    header_table = Table(header_data, colWidths=[15*cm, 3*cm])
-    header_table.setStyle(TableStyle([
-        # Fond bleu pour "Devis N°"
-        ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER_BLEU),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (1, 0), (1, 0), 8),
-        ('BOTTOMPADDING', (1, 0), (1, 0), 8),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        # Pas de bordures
-        ('GRID', (0, 0), (-1, -1), 0, colors.white),
-    ]))
+    if logo:
+        # Avec logo : Tableau avec logo à gauche et "Devis N°" à droite
+        header_data = [
+            [logo, Paragraph("Devis N°", devis_header_style)]
+        ]
+        header_table = Table(header_data, colWidths=[15*cm, 3*cm])
+        header_table.setStyle(TableStyle([
+            # Fond bleu pour "Devis N°"
+            ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER_BLEU),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),    # Logo aligné à gauche
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),  # "Devis N°" centré
+            ('TOPPADDING', (1, 0), (1, 0), 8),
+            ('BOTTOMPADDING', (1, 0), (1, 0), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            # Pas de bordures
+            ('GRID', (0, 0), (-1, -1), 0, colors.white),
+        ]))
+    else:
+        # Sans logo : Tableau simple avec "Devis N°" à droite
+        header_data = [
+            ['', Paragraph("Devis N°", devis_header_style)]
+        ]
+        header_table = Table(header_data, colWidths=[15*cm, 3*cm])
+        header_table.setStyle(TableStyle([
+            # Fond bleu pour "Devis N°"
+            ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER_BLEU),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (1, 0), (1, 0), 8),
+            ('BOTTOMPADDING', (1, 0), (1, 0), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            # Pas de bordures
+            ('GRID', (0, 0), (-1, -1), 0, colors.white),
+        ]))
     
     elements.append(header_table)
     elements.append(Spacer(1, 5*mm))
@@ -339,6 +392,7 @@ if __name__ == "__main__":
         "fournisseur_nom": "INFINYTIA",
         "client_nom": "BMW France",
         "client_adresse": "3 Avenue Ampère",
+        "logo_url": "https://via.placeholder.com/150x100/4a90b8/ffffff?text=LOGO",  # Logo de test
         "banque_nom": "Qonto",
         "banque_iban": "FR761699000013234410233663",
         "banque_bic": "QNTOFR21XXX",
