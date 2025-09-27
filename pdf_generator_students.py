@@ -1,4 +1,4 @@
-# pdf_generator_students.py - Générateur PDF avec le style de formation
+# pdf_generator_students.py - VERSION CORRIGÉE - Style identique à votre image
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -6,121 +6,135 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm, mm
 from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 import os
-from datetime import datetime
 
-# Couleurs du design (comme sur votre image)
-COULEUR_HEADER = colors.HexColor('#4a90b8')  # Bleu de l'en-tête "Devis N°"
-COULEUR_TEXTE = colors.HexColor('#2c3e50')   # Couleur du texte principal
-COULEUR_BORDURE = colors.HexColor('#bdc3c7') # Couleur des bordures
+# Couleurs exactes de votre image
+COULEUR_HEADER_BLEU = colors.HexColor('#4a90b8')  # Bleu de "Devis N°"
+COULEUR_TEXTE_NOIR = colors.black
+COULEUR_BORDURE_GRIS = colors.HexColor('#cccccc')
 
 def generate_student_style_devis(devis_data):
     """
-    Générer un devis PDF avec le style exact de l'image de formation
+    Générer un devis PDF avec le style EXACT de votre image originale
     """
-    # Créer le dossier generated s'il n'existe pas
     os.makedirs('generated', exist_ok=True)
-    
     filename = os.path.join('generated', f'devis_{devis_data["numero"]}.pdf')
     
-    # Configuration du document A4
+    # Document A4 avec marges
     doc = SimpleDocTemplate(
         filename,
         pagesize=A4,
-        rightMargin=2*cm,
-        leftMargin=2*cm,
-        topMargin=1*cm,
-        bottomMargin=2*cm
+        rightMargin=20*mm,
+        leftMargin=20*mm,
+        topMargin=15*mm,
+        bottomMargin=20*mm
     )
     
     elements = []
     styles = getSampleStyleSheet()
     
-    # Style pour l'en-tête "Devis N°"
-    header_style = ParagraphStyle(
-        'HeaderStyle',
-        parent=styles['Normal'],
-        fontSize=16,
+    # ==========================================
+    # 1. EN-TÊTE "DEVIS N°" - Style exact de votre image
+    # ==========================================
+    
+    # Créer un style pour "Devis N°"
+    devis_header_style = ParagraphStyle(
+        'DevisHeader',
+        fontSize=14,
         textColor=colors.white,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER,
-        spaceAfter=0,
-        spaceBefore=0
+        leftIndent=0,
+        rightIndent=0
     )
     
-    # 1. EN-TÊTE "DEVIS N°" - Aligné à droite avec fond bleu
-    header_table = Table([
-        ['', Paragraph(f"Devis N°", header_style)]
-    ], colWidths=[14*cm, 4*cm])
+    # Tableau pour aligner "Devis N°" à droite
+    header_data = [
+        ['', Paragraph("Devis N°", devis_header_style)]
+    ]
     
+    header_table = Table(header_data, colWidths=[15*cm, 3*cm])
     header_table.setStyle(TableStyle([
-        ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER),
+        # Fond bleu pour "Devis N°"
+        ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER_BLEU),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('TOPPADDING', (1, 0), (1, 0), 8),
         ('BOTTOMPADDING', (1, 0), (1, 0), 8),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        # Pas de bordures
+        ('GRID', (0, 0), (-1, -1), 0, colors.white),
     ]))
     
     elements.append(header_table)
-    elements.append(Spacer(1, 10*mm))
+    elements.append(Spacer(1, 5*mm))
     
-    # Style pour les informations
-    info_style = ParagraphStyle('InfoStyle', fontSize=10, textColor=COULEUR_TEXTE)
+    # ==========================================
+    # 2. SECTION INFORMATIONS - Layout exact
+    # ==========================================
     
-    # 2. SECTION INFORMATIONS - Deux colonnes comme sur l'image
-    # Colonne gauche : Informations du devis
-    left_info = [
-        ['Date du devis :', devis_data.get('date_emission', '')],
-        ['Date de validité du devis :', devis_data.get('date_expiration', '')],
-        ['Émis par :', devis_data.get('fournisseur_nom', '')],
-        ['Date de début de la prestation :', devis_data.get('date_debut', '')]
+    info_style = ParagraphStyle('InfoStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR, fontName='Helvetica')
+    info_bold_style = ParagraphStyle('InfoBoldStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR, fontName='Helvetica-Bold')
+    
+    # Données côte à côte comme dans votre image
+    info_data = [
+        [
+            Paragraph("Date du devis :", info_bold_style),
+            Paragraph(devis_data.get('date_emission', ''), info_style),
+            Paragraph("Nom du destinataire :", info_bold_style),
+            Paragraph(devis_data.get('client_nom', ''), info_style)
+        ],
+        [
+            Paragraph("Date de validité du devis :", info_bold_style),
+            Paragraph(devis_data.get('date_expiration', ''), info_style),
+            Paragraph("Adresse :", info_bold_style),
+            Paragraph(devis_data.get('client_adresse', ''), info_style)
+        ],
+        [
+            Paragraph("Émis par :", info_bold_style),
+            Paragraph(devis_data.get('fournisseur_nom', ''), info_style),
+            Paragraph("", info_style),
+            Paragraph("", info_style)
+        ],
+        [
+            Paragraph("Date de début de la prestation :", info_bold_style),
+            Paragraph(devis_data.get('date_debut', ''), info_style),
+            Paragraph("", info_style),
+            Paragraph("", info_style)
+        ]
     ]
     
-    # Colonne droite : Informations destinataire
-    right_info = [
-        ['Nom du destinataire :', devis_data.get('client_nom', '')],
-        ['Adresse :', devis_data.get('client_adresse', '')]
-    ]
-    
-    # Créer le tableau d'informations
-    max_rows = max(len(left_info), len(right_info))
-    combined_info = []
-    
-    for i in range(max_rows):
-        left_row = left_info[i] if i < len(left_info) else ['', '']
-        right_row = right_info[i] if i < len(right_info) else ['', '']
-        
-        combined_info.append([
-            Paragraph(f"<b>{left_row[0]}</b>", info_style),
-            Paragraph(left_row[1], info_style),
-            Paragraph(f"<b>{right_row[0]}</b>", info_style),
-            Paragraph(right_row[1], info_style)
-        ])
-    
-    info_table = Table(combined_info, colWidths=[4*cm, 5*cm, 4*cm, 5*cm])
+    info_table = Table(info_data, colWidths=[4.5*cm, 4.5*cm, 4*cm, 5*cm])
     info_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]))
     
     elements.append(info_table)
-    elements.append(Spacer(1, 15*mm))
+    elements.append(Spacer(1, 8*mm))
     
-    # 3. TABLEAU PRINCIPAL DES ARTICLES
-    # Style pour l'en-tête du tableau
+    # ==========================================
+    # 3. TABLEAU PRINCIPAL - Style exact de votre image
+    # ==========================================
+    
+    # Style pour les en-têtes du tableau
     table_header_style = ParagraphStyle(
         'TableHeader',
-        fontSize=11,
+        fontSize=10,
         textColor=colors.white,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER
     )
     
-    # En-tête du tableau (exactement comme sur l'image)
-    articles_data = [
+    # Style pour les données
+    cell_style = ParagraphStyle('CellStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR)
+    cell_center_style = ParagraphStyle('CellCenterStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR, alignment=TA_CENTER)
+    cell_right_style = ParagraphStyle('CellRightStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR, alignment=TA_RIGHT)
+    
+    # En-tête du tableau (colonnes exactes de votre image)
+    table_data = [
         [
             Paragraph("Description", table_header_style),
             Paragraph("Prix unitaire HT", table_header_style),
@@ -129,160 +143,182 @@ def generate_student_style_devis(devis_data):
         ]
     ]
     
-    # Styles pour les données
-    data_style = ParagraphStyle('DataStyle', fontSize=10, textColor=COULEUR_TEXTE)
-    data_style_center = ParagraphStyle('DataStyleCenter', fontSize=10, textColor=COULEUR_TEXTE, alignment=TA_CENTER)
-    data_style_right = ParagraphStyle('DataStyleRight', fontSize=10, textColor=COULEUR_TEXTE, alignment=TA_RIGHT)
-    
     # Ajouter les articles
     for item in devis_data.get('items', []):
-        total_ligne = item.get('prix_unitaire', 0) * item.get('quantite', 1)
-        articles_data.append([
-            Paragraph(item.get('description', ''), data_style),
-            Paragraph(f"{item.get('prix_unitaire', 0):.2f} €", data_style_right),
-            Paragraph(str(item.get('quantite', 1)), data_style_center),
-            Paragraph(f"{total_ligne:.2f} €", data_style_right)
+        prix_unitaire = item.get('prix_unitaire', 0)
+        quantite = item.get('quantite', 1)
+        total_ligne = prix_unitaire * quantite
+        
+        table_data.append([
+            Paragraph(item.get('description', ''), cell_style),
+            Paragraph(f"{prix_unitaire:.2f} €", cell_right_style),
+            Paragraph(str(quantite), cell_center_style),
+            Paragraph(f"{total_ligne:.2f} €", cell_right_style)
         ])
     
-    # Ajouter des lignes vides pour l'espace (comme sur l'image)
-    for _ in range(5):
-        articles_data.append(['', '', '', ''])
+    # Ajouter des lignes vides pour remplir le tableau (comme dans votre image)
+    for _ in range(6):  # 6 lignes vides
+        table_data.append([
+            Paragraph("", cell_style),
+            Paragraph("", cell_style),
+            Paragraph("", cell_style),
+            Paragraph("", cell_style)
+        ])
     
-    # Créer le tableau des articles
-    articles_table = Table(articles_data, colWidths=[8*cm, 3*cm, 2*cm, 3*cm])
+    # Créer le tableau avec les bonnes largeurs
+    main_table = Table(table_data, colWidths=[8*cm, 3.5*cm, 2*cm, 3*cm])
     
-    # Style du tableau (avec en-tête bleu)
-    articles_table.setStyle(TableStyle([
+    # Style du tableau identique à votre image
+    main_table.setStyle(TableStyle([
         # En-tête avec fond bleu
-        ('BACKGROUND', (0, 0), (-1, 0), COULEUR_HEADER),
+        ('BACKGROUND', (0, 0), (-1, 0), COULEUR_HEADER_BLEU),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         
-        # Bordures pour tout le tableau
-        ('GRID', (0, 0), (-1, -1), 1, COULEUR_BORDURE),
+        # Bordures grises pour tout le tableau
+        ('GRID', (0, 0), (-1, -1), 0.5, COULEUR_BORDURE_GRIS),
         
         # Alignements
-        ('ALIGN', (1, 1), (1, -1), 'RIGHT'),  # Prix unitaire
-        ('ALIGN', (2, 1), (2, -1), 'CENTER'), # Quantité
-        ('ALIGN', (3, 1), (3, -1), 'RIGHT'),  # Total HT
+        ('ALIGN', (1, 1), (1, -1), 'RIGHT'),   # Prix unitaire
+        ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # Quantité
+        ('ALIGN', (3, 1), (3, -1), 'RIGHT'),   # Total HT
         
         # Padding
-        ('TOPPADDING', (0, 0), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         
         # Alignement vertical
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     
-    elements.append(articles_table)
-    elements.append(Spacer(1, 15*mm))
+    elements.append(main_table)
+    elements.append(Spacer(1, 8*mm))
     
-    # 4. SECTION TOTAUX
+    # ==========================================
+    # 4. TOTAUX - Style exact de votre image
+    # ==========================================
+    
     # Calculer les totaux
     total_ht = sum(item.get('prix_unitaire', 0) * item.get('quantite', 1) for item in devis_data.get('items', []))
     tva = total_ht * 0.20  # 20% de TVA
     total_ttc = total_ht + tva
     
-    # Totaux partiels (alignés à droite)
-    totals_style = ParagraphStyle('TotalsStyle', fontSize=11, textColor=COULEUR_TEXTE, alignment=TA_RIGHT)
+    # Style pour les totaux
+    total_style = ParagraphStyle('TotalStyle', fontSize=10, textColor=COULEUR_TEXTE_NOIR, alignment=TA_RIGHT)
+    total_bold_style = ParagraphStyle('TotalBoldStyle', fontSize=11, textColor=COULEUR_TEXTE_NOIR, alignment=TA_RIGHT, fontName='Helvetica-Bold')
     
+    # Tableau des totaux (aligné à droite)
     totals_data = [
-        ['', 'Total HT', f"{total_ht:.2f} €"],
-        ['', 'TVA', f"{tva:.2f} €"],
-        ['', '', '']  # Ligne vide
+        ['', '', 'Total HT', f"{total_ht:.2f} €"],
+        ['', '', 'TVA', f"{tva:.2f} €"]
     ]
     
-    totals_table = Table(totals_data, colWidths=[11*cm, 3*cm, 4*cm])
+    totals_table = Table(totals_data, colWidths=[8*cm, 3.5*cm, 3*cm, 2*cm])
     totals_table.setStyle(TableStyle([
-        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('FONTNAME', (1, 0), (1, 1), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 0), (2, 1), 'Helvetica-Bold'),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('FONTNAME', (2, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (2, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
     ]))
     
     elements.append(totals_table)
+    elements.append(Spacer(1, 3*mm))
     
-    # Total TTC dans un encadré bleu (comme sur l'image)
-    ttc_data = [['Total TTC', f"{total_ttc:.2f} €"]]
-    ttc_table = Table(ttc_data, colWidths=[14*cm, 4*cm])
+    # Total TTC dans un encadré bleu (comme dans votre image)
+    ttc_data = [['', '', 'Total TTC', f"{total_ttc:.2f} €"]]
+    ttc_table = Table(ttc_data, colWidths=[8*cm, 3.5*cm, 3*cm, 2*cm])
     ttc_table.setStyle(TableStyle([
-        ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER),
-        ('TEXTCOLOR', (1, 0), (1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 12),
-        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, COULEUR_BORDURE),
+        ('BACKGROUND', (2, 0), (-1, 0), COULEUR_HEADER_BLEU),
+        ('TEXTCOLOR', (2, 0), (-1, 0), colors.white),
+        ('FONTNAME', (2, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (2, 0), (-1, 0), 11),
+        ('ALIGN', (2, 0), (-1, 0), 'RIGHT'),
+        ('TOPPADDING', (2, 0), (-1, 0), 6),
+        ('BOTTOMPADDING', (2, 0), (-1, 0), 6),
+        ('GRID', (2, 0), (-1, 0), 0.5, COULEUR_BORDURE_GRIS),
     ]))
     
     elements.append(ttc_table)
-    elements.append(Spacer(1, 20*mm))
+    elements.append(Spacer(1, 15*mm))
     
+    # ==========================================
     # 5. SIGNATURE CLIENT
-    signature_style = ParagraphStyle('SignatureStyle', fontSize=10, textColor=COULEUR_TEXTE)
+    # ==========================================
     
-    signature_data = [[
-        Paragraph("Signature du client<br/>(précédé de la mention \"Bon pour accord\")", signature_style),
-        ''
-    ]]
+    signature_style = ParagraphStyle('SignatureStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR)
+    
+    signature_data = [
+        [Paragraph("Signature du client<br/>(précédé de la mention \"Bon pour accord\")", signature_style), '']
+    ]
     
     signature_table = Table(signature_data, colWidths=[9*cm, 9*cm])
     signature_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     
     elements.append(signature_table)
     elements.append(Spacer(1, 15*mm))
     
-    # 6. SECTIONS FINALES - "Informations" et "Détails bancaires" côte à côte
-    section_style = ParagraphStyle('SectionStyle', fontSize=10, textColor=COULEUR_TEXTE)
-    section_header = ParagraphStyle('SectionHeader', fontSize=11, textColor=colors.white, 
-                                   fontName='Helvetica-Bold', alignment=TA_CENTER)
+    # ==========================================
+    # 6. SECTIONS FINALES - "Informations" et "Détails bancaires"
+    # ==========================================
+    
+    section_header_style = ParagraphStyle(
+        'SectionHeaderStyle',
+        fontSize=10,
+        textColor=colors.white,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    section_content_style = ParagraphStyle('SectionContentStyle', fontSize=9, textColor=COULEUR_TEXTE_NOIR)
     
     # Contenu des sections
-    info_content = """Informations complémentaires..."""
+    info_content = "Informations complémentaires..."
     
-    bank_content = f"""Banque: {devis_data.get('banque_nom', 'BNP Paribas')}<br/>
-IBAN: {devis_data.get('banque_iban', 'FR76 3000 4008 2800 0123 4567 890')}<br/>
-BIC: {devis_data.get('banque_bic', 'BNPAFRPPXXX')}"""
+    bank_content = f"""Banque: {devis_data.get('banque_nom', 'Qonto')}<br/>
+IBAN: {devis_data.get('banque_iban', 'FR761699000013234410233663')}<br/>
+BIC: {devis_data.get('banque_bic', 'QNTOFR21XXX')}"""
     
     # Tableau pour les deux sections côte à côte
-    bottom_sections = [
+    sections_data = [
+        # En-têtes
         [
-            Table([[Paragraph("Informations", section_header)]], colWidths=[8.5*cm]),
-            Table([[Paragraph("Détails bancaires", section_header)]], colWidths=[8.5*cm])
+            Paragraph("Informations", section_header_style),
+            Paragraph("Détails bancaires", section_header_style)
         ],
+        # Contenus
         [
-            Paragraph(info_content, section_style),
-            Paragraph(bank_content, section_style)
+            Paragraph(info_content, section_content_style),
+            Paragraph(bank_content, section_content_style)
         ]
     ]
     
-    bottom_table = Table(bottom_sections, colWidths=[9*cm, 9*cm])
-    bottom_table.setStyle(TableStyle([
-        # En-têtes colorés
-        ('BACKGROUND', (0, 0), (0, 0), COULEUR_HEADER),
-        ('BACKGROUND', (1, 0), (1, 0), COULEUR_HEADER),
+    sections_table = Table(sections_data, colWidths=[9*cm, 9*cm])
+    sections_table.setStyle(TableStyle([
+        # En-têtes avec fond bleu
+        ('BACKGROUND', (0, 0), (-1, 0), COULEUR_HEADER_BLEU),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
     
-    elements.append(bottom_table)
+    elements.append(sections_table)
     elements.append(Spacer(1, 10*mm))
     
+    # ==========================================
     # 7. MESSAGE FINAL "MERCI BEAUCOUP !"
+    # ==========================================
+    
     thank_you_style = ParagraphStyle(
         'ThankYouStyle',
         fontSize=14,
-        textColor=COULEUR_HEADER,
+        textColor=COULEUR_HEADER_BLEU,
         fontName='Helvetica-Bold',
         alignment=TA_CENTER
     )
@@ -293,22 +329,37 @@ BIC: {devis_data.get('banque_bic', 'BNPAFRPPXXX')}"""
     doc.build(elements)
     return filename
 
-# Test rapide si on lance le fichier directement
+# Test si lancé directement
 if __name__ == "__main__":
-    # Données de test
     test_data = {
-        "numero": "TEST-001",
-        "date_emission": "27/09/2024",
-        "date_expiration": "27/10/2024",
-        "date_debut": "01/10/2024",
-        "fournisseur_nom": "Formation Web",
-        "client_nom": "Client Test",
-        "client_adresse": "123 Rue Test, 75001 Paris",
+        "numero": "2025_0927_001",
+        "date_emission": "27/09/2025",
+        "date_expiration": "27/10/2025",
+        "date_debut": "01/10/2025",
+        "fournisseur_nom": "INFINYTIA",
+        "client_nom": "BMW France",
+        "client_adresse": "3 Avenue Ampère",
+        "banque_nom": "Qonto",
+        "banque_iban": "FR761699000013234410233663",
+        "banque_bic": "QNTOFR21XXX",
         "items": [
-            {"description": "Formation développement", "prix_unitaire": 500, "quantite": 2},
-            {"description": "Support technique", "prix_unitaire": 150, "quantite": 1}
+            {
+                "description": "Automatisation des e-mails marketing et commerciaux",
+                "prix_unitaire": 1000.0,
+                "quantite": 1
+            },
+            {
+                "description": "Automatisation WhatsApp pour envoi de véhicules avec reconnaissance de plaques",
+                "prix_unitaire": 2000.0,
+                "quantite": 1
+            },
+            {
+                "description": "Automatisation de publication Linkedin",
+                "prix_unitaire": 1500.0,
+                "quantite": 1
+            }
         ]
     }
     
     filename = generate_student_style_devis(test_data)
-    print(f"Test PDF généré : {filename}")
+    print(f"PDF test généré : {filename}")
