@@ -17,23 +17,34 @@ app.config['UPLOAD_FOLDER'] = 'generated'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Clés API (à stocker dans des variables d'environnement en production)
-API_KEY_1 = os.environ.get('API_KEY_1', 'your-secret-key-1-here')
-API_KEY_2 = os.environ.get('API_KEY_2', 'your-secret-key-2-here')
-
-# Thèmes disponibles
-THEMES_DISPONIBLES = ['bleu', 'vert', 'rouge', 'violet', 'orange', 'noir']
+# On accepte plusieurs noms possibles pour être tolérant (API_KEY_1 ou X_API_KEY_1)
+API_KEY_1 = (
+    os.environ.get('API_KEY_1')
+    or os.environ.get('X_API_KEY_1')
+    or 'your-secret-key-1-here'
+)
+API_KEY_2 = (
+    os.environ.get('API_KEY_2')
+    or os.environ.get('X_API_KEY_2')
+    or 'your-secret-key-2-here'
+)
 
 def require_api_keys(f):
     """Décorateur pour vérifier les 2 clés API"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Vérifier les headers
-        key1 = request.headers.get('X-API-Key-1')
-        key2 = request.headers.get('X-API-Key-2')
-        
+        # On accepte X-API-Key-1 ou X_API_KEY_1 dans les headers
+        key1 = request.headers.get('X-API-Key-1') or request.headers.get('X_API_KEY_1')
+        key2 = request.headers.get('X-API-Key-2') or request.headers.get('X_API_KEY_2')
+
+        # Debug temporaire (tu peux enlever après)
+        # print("HEADERS:", dict(request.headers))
+        # print("API_KEY_1 attendu:", API_KEY_1)
+        # print("API_KEY_2 attendu:", API_KEY_2)
+
         if not key1 or not key2:
             return jsonify({"error": "Clés API manquantes"}), 401
-        
+
         if key1 != API_KEY_1 or key2 != API_KEY_2:
             return jsonify({"error": "Clés API invalides"}), 401
         
