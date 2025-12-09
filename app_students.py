@@ -16,6 +16,8 @@ CORS(app)  # Permet les requêtes depuis d'autres domaines
 app.config['UPLOAD_FOLDER'] = 'generated'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# Thèmes disponibles
+THEMES_DISPONIBLES = ['bleu', 'vert', 'rouge', 'violet', 'orange', 'noir']
 # Clés API (à stocker dans des variables d'environnement en production)
 # On accepte plusieurs noms possibles pour être tolérant (API_KEY_1 ou X_API_KEY_1)
 API_KEY_1 = (
